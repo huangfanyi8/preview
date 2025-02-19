@@ -213,7 +213,7 @@ namespace preview
 }
 ///ranges::swap,
 ///swappable,
-//swappable_with
+///swappable_with
 namespace preview
 {
   namespace ranges::Cpo
@@ -304,7 +304,6 @@ namespace preview
   template< class T, class U >
   CXX17_CONCEPT swappable_with = common_reference_with<T, U>&&_details::_swappable_with<T,U>::value;
 }
-
 ///boolean_testable
 namespace preview
 {
