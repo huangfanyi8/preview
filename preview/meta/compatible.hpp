@@ -36,7 +36,7 @@
 inline constexpr bool
 #endif
 
-#include<type_traits>
+#include<utility>
 
 namespace meta
 {
