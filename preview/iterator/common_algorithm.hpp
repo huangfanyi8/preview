@@ -3,7 +3,7 @@
 
 #include "utilities.hpp"
 #include "indirectly_writable.hpp"
-#include "../predicate/predicate.hpp"
+#include "../ranges/predicate.hpp"
 #include "../ranges/swap.hpp"
 #include "_iterator_concepts.hpp"
 
@@ -65,8 +65,8 @@ namespace preview
       &&_indirectly_swappable<A,B>::value;
   
   template<class I1,class I2,class Rel,
-    class P1=identity,
-    class P2=identity>
+    class P1=ranges::identity,
+    class P2=ranges::identity>
   CXX17_CONCEPT indirectly_comparable
     = indirect_binary_predicate<Rel,projected<I1,P1>,
       projected<I2,P2>>;
@@ -78,8 +78,8 @@ namespace preview
       && indirectly_swappable<Iter,Iter>;
   
   template<class I1,class I2,class Out,
-    typename Rel = less,class P1 = identity,
-    typename P2 = identity>
+    typename Rel = ranges::less,class P1 = ranges::identity,
+    typename P2 = ranges::identity>
   CXX17_CONCEPT mergeable
     = input_iterator<I1>
       && input_iterator<I2>
@@ -88,8 +88,8 @@ namespace preview
       && indirectly_copyable<I2,Out>
       && indirect_strict_weak_order<Rel, projected<I1,P1>,projected<I2,P2>>;
   
-  template<class Iter,class Rel = less,
-    typename Proj = identity>
+  template<class Iter,class Rel = ranges::less,
+    typename Proj = ranges::identity>
   CXX17_CONCEPT sortable
     = permutable<Iter>
       && indirect_strict_weak_order<Rel,projected<Iter,Proj>>;
