@@ -9,6 +9,8 @@ enable_testing()
 
 add_library(ranges INTERFACE)
 
+target_sources(ranges INTERFACE ${CMAKE_CURRENT_LIST_DIR}/concepts.hpp)
+
 target_compile_features(ranges INTERFACE 17)
 
 file(GLOB _test_files ${CMAKE_CURRENT_LIST_DIR}/test/*.cpp)
@@ -22,5 +24,5 @@ foreach(test_file  ${_test_files})
             CXX_STANDARD 17)
 
     target_include_directories(${file_name}
-            PRIVATE ${_root_library})
+            INTERFACE ${_root_library}/preview)
 endforeach ()
