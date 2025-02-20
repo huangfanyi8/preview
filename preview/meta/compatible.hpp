@@ -31,6 +31,11 @@
 #define INLINE
 #endif
 
+#ifndef CXX17_CONCEPT
+#define CXX17_CONCEPT \
+inline constexpr bool
+#endif
+
 #include<type_traits>
 
 namespace meta
@@ -72,6 +77,26 @@ namespace meta
     template<class>class ...RestP>
   struct map<Type,HeadP,RestP...>
     :map<typename HeadP<Type>::type,RestP...>
+  {};
+  
+  template<class T,class=void>
+  struct _can_reference
+    :std::false_type
+  {};
+  
+  template<class T>
+  struct _can_reference<T,std::void_t<T,T&>>
+    :std::true_type
+  {};
+  
+  template<class T,class=void>
+  struct _dereference
+    :std::false_type
+  {};
+  
+  template<class T>
+  struct _dereference<T,std::enable_if_t<_can_reference<decltype(*std::declval<T&>())>::value>>
+    :std::true_type
   {};
   
   template<class Type,template<class >class...Pred>
