@@ -2,9 +2,25 @@
 #define UTILITY_SINGLE_ITERATOR_CONCEPT_HPP
 
 #include<iterator>
-
 #include"../../concepts/single/concepts.hpp"
 
+///_iterator tag
+namespace preview
+{
+    using std::input_iterator_tag;
+    using std::forward_iterator_tag;
+    using std::output_iterator_tag;
+    using std::bidirectional_iterator_tag;
+    using std::random_access_iterator_tag;
+    struct contiguous_iterator_tag : public random_access_iterator_tag {};
+}
+///default_sentinel_t
+namespace preview
+{
+    struct default_sentinel_t { };
+    
+    inline constexpr default_sentinel_t default_sentinel{};
+}
 ///iter_reference_t
 namespace preview
 {
@@ -81,17 +97,6 @@ namespace preview
 ///iterator_traits forward declaration
 namespace preview
 {
-  struct default_sentinel_t { };
-  
-  inline constexpr default_sentinel_t default_sentinel{};
-  
-  using std::input_iterator_tag;
-  using std::forward_iterator_tag;
-  using std::output_iterator_tag;
-  using std::bidirectional_iterator_tag;
-  using std::random_access_iterator_tag;
-  struct contiguous_iterator_tag : public random_access_iterator_tag {};
-  
   namespace _details
   {
     template<class,class = void>
@@ -164,14 +169,11 @@ namespace preview
     template <class T>
     struct _incrementable_traits<4,T>
     {};
-    
   }
   
   template <class T,class=void>
   struct incrementable_traits
-  {
-    using difference_type=typename _details::_incrementable_traits<1,T>::type;
-  };
+  {using difference_type=typename _details::_incrementable_traits<1,T>::type;};
 }
 ///iter_difference_t
 namespace preview
@@ -195,72 +197,74 @@ namespace preview
   namespace _details
   {
     template <int match,class T, class = void>
-    struct readable_traits_helper
-      :readable_traits_helper<match+1,T>
+    struct _indirectly_readable_traits
+      :_indirectly_readable_traits<match+1,T>
     {};
     
     template <int match,class T>
-    struct readable_traits_helper<match,const T>
-      :readable_traits_helper<match,T>
+    struct _indirectly_readable_traits<match,const T>
+      :_indirectly_readable_traits<match,T>
     {};
     
     template <class T>
-    struct readable_traits_helper<1,T,std::enable_if_t<std::is_array_v<T>>>
-      : std::remove_cv<std::remove_extent_t<T>>
-    {};
+    struct _indirectly_readable_traits<1,T,std::enable_if_t<std::is_array_v<T>>>
+    {using value_type = std::remove_cv_t<std::remove_extent_t<T>>;};
     
     template <class T>
-    struct readable_traits_helper<3,T,std::void_t<std::remove_cv_t<typename T::value_type>,std::remove_cv_t<typename T::element_type>>>
-      : std::conditional_t<same_as<std::remove_cv_t<typename T::value_type>,std::remove_cv_t<typename T::element_type>>,
-        meta::type_identity<typename T::value_type>,
-        meta::type_identity<meta::undefined>>
-    {};
+    struct _indirectly_readable_traits<2,T*,std::enable_if_t<std::is_object_v<T>>>
+    { using value_type = std::remove_cv_t<T>;};
     
     template <class T>
-    struct readable_traits_helper<4,T,std::void_t<typename T::value_type>>
+    struct _indirectly_readable_traits<3,T,std::void_t<typename T::value_type>>
       :meta::type_identity<typename T::value_type>
-    {};
+    {using value_type = typename T::value_type;};
     
     template <class T>
-    struct readable_traits_helper<5,T,std::void_t<typename T::element_type>>
-      :meta::type_identity<typename T::element_type>
-    {};
+    struct _indirectly_readable_traits<4,T,std::void_t<typename T::element_type>>
+    {using value_type = typename T::element_type;};
     
     template <class T>
-    struct readable_traits_helper<6,T>
-      :meta::type_identity<meta::undefined>
-    {};
+    struct _indirectly_readable_traits<5,T,std::void_t<std::remove_cv_t<typename T::value_type>,std::remove_cv_t<typename T::element_type>,
+        std::enable_if_t<same_as<std::remove_cv_t<typename T::value_type>,std::remove_cv_t<typename T::element_type>>>>>
+    {using value_type= typename T::value_type;};
     
     template <class T>
-    struct readable_traits_helper<2,T*,std::enable_if_t<std::is_object_v<T>>>
-      :std::remove_cv<T>
+    struct _indirectly_readable_traits<6,T>
     {};
   }
   
   template <class T>
   struct indirectly_readable_traits
+    :_details::_indirectly_readable_traits<1,T>
   {
-  private:
-    using _base=typename _details::readable_traits_helper<1,T>::type;
-  public:
-    using value_type=std::enable_if_t<!same_as<_base,meta::undefined>,_base>;
+  
   };
 }
 ///iter_value_t
 namespace preview
 {
-  template<class Iter,class =void>
+  template<class Iter,int tag,class = void>
   struct iter_value
-    :meta::type_identity<typename indirectly_readable_traits<meta::remove_cvref_t<Iter>>::value_type >
+    :iter_value<Iter,tag+1>
   {};
-  
+    
+    template<class Iter>
+    struct iter_value<Iter,0,std::void_t<typename indirectly_readable_traits<meta::remove_cvref_t<Iter>>::value_type >>
+        :meta::type_identity<typename indirectly_readable_traits<meta::remove_cvref_t<Iter>>::value_type >
+    {};
+    
   template<class Iter>
-  struct iter_value<Iter,std::enable_if_t<_is_specialization_v<meta::remove_cvref_t<Iter>>>>
+  struct iter_value<Iter,-1,std::void_t<typename iterator_traits<meta::remove_cvref_t<Iter>>::value_type ,
+      std::enable_if_t<_is_specialization_v<meta::remove_cvref_t<Iter>>>>>
     :meta::type_identity<typename iterator_traits<meta::remove_cvref_t<Iter>>::value_type >
   {};
-  
+    
+    template<class Iter>
+    struct iter_value<Iter,1>
+    {};
+    
   template <class Iter,class Tn = meta::remove_cvref_t<Iter>>
-  using iter_value_t=typename iter_value<Iter>::type;
+  using iter_value_t=typename iter_value<Iter,-1>::type;
 }
 ///iter_rvalue_reference_t
 namespace preview
@@ -268,258 +272,257 @@ namespace preview
   template< class T ,class=std::enable_if_t<meta::_dereference<T>::value>>
   using iter_rvalue_reference_t =decltype(ranges::iter_move(std::declval<T&>()));
 }
-///iterator traits
-namespace preview
+///_iterator_traits
+namespace preview::_details
 {
-  namespace _details
-  {
-    template<class Iter,class =void>
-    struct  _cpp17_iterator
-      :std::false_type
-    {};
-    
-    template<class Iter>
-    struct _cpp17_iterator<Iter,meta::_require_t<
-      meta::_can_reference<decltype(*std::declval<Iter&>())>::value,
-      same_as<decltype(++std::declval<Iter&>()),Iter&>,
-      meta::_can_reference<decltype(*std::declval<Iter&>()++)>::value>>
-      :std::true_type
-    {};
-    
-    template<class Iter>
-    CXX17_CONCEPT _is_cpp17_iterator = _cpp17_iterator<Iter>::value&&copyable<Iter>;
+template<class Iter,class =void>
+struct  _cpp17_iterator
+  :std::false_type
+{};
 
-    template<class Iter,class =void>
-    struct _cpp17_input_iterator
-      :std::false_type
-    {};
-    
-    template<class _Iter>
-    struct _cpp17_input_iterator<_Iter,
-      std::void_t<typename incrementable_traits<_Iter>::difference_type,
-        typename indirectly_readable_traits<_Iter>::value_type,
-        meta::common_reference_t<iter_reference_t<_Iter>&&,typename indirectly_readable_traits<_Iter>::value_type&>,
-        meta::common_reference_t<decltype(*std::declval<_Iter&>()++)&&,typename indirectly_readable_traits<_Iter>::value_type&>>>
-      :std::bool_constant<_is_cpp17_iterator<_Iter>
-      && equality_comparable<_Iter>
-      &&signed_integral<typename incrementable_traits<_Iter>::difference_type>>
-    {};
-    
-    template<class Iter>
-    CXX17_CONCEPT _is_cpp17_input_iterator = _cpp17_input_iterator<Iter>::value;
+template<class Iter>
+struct _cpp17_iterator<Iter,meta::_require_t<
+  meta::_can_reference<decltype(*std::declval<Iter&>())>::value,
+  same_as<decltype(++std::declval<Iter&>()),Iter&>,
+  meta::_can_reference<decltype(*std::declval<Iter&>()++)>::value>>
+  :std::true_type
+{};
 
-    template<class Iter,class =void>
-    struct _cpp_fwd_iterator
-      :std::false_type
-    {};
-    
-    template<class Iter>
-    struct _cpp_fwd_iterator<Iter,std::enable_if_t<
-      convertible_to<decltype(std::declval<Iter&>()++),const Iter&>
-      &&same_as<decltype(*std::declval<Iter&>()++), iter_reference_t<Iter>>>>
-        :std::true_type
-    {};
-    
-    template<class Iter>
-    CXX17_CONCEPT _is_cpp17_fwd_iterator
-      = _is_cpp17_input_iterator<Iter>
-      && constructible_from<Iter>
-      && std::is_lvalue_reference_v<iter_reference_t<Iter>>
-      &&same_as<meta::remove_cvref_t<iter_reference_t<Iter>>,typename indirectly_readable_traits<Iter>::value_type>
-      &&_cpp_fwd_iterator<Iter>::value;
-    
-    template<class Iter,class =void>
-    struct _cpp_bidi_iterator
-      :std::false_type
-    {};
-    
-    template<class Iter>
-    struct _cpp_bidi_iterator<Iter,std::enable_if_t<
-      convertible_to<decltype(std::declval<Iter&>()--),const Iter&>
-      &&same_as<decltype(--std::declval<Iter&>()),Iter&>
-      &&same_as<decltype(*std::declval<Iter&>()--), iter_reference_t<Iter>>>>
-      :std::true_type
-    {};
-    
-  template<class Iter>
-  CXX17_CONCEPT  _is_cpp17_bidi_iterator = _is_cpp17_fwd_iterator<Iter>&&_cpp_bidi_iterator<Iter>::value;
-    
-    template<class Iter,class = void>
-    struct _cpp17_random_access_iterator
-      :std::false_type
-    {};
-    
-  template<class Iter>
-  struct _cpp17_random_access_iterator<Iter,
-      meta::_require_t<
-      same_as<Iter&, decltype(std::declval<Iter&>()+=std::declval<typename incrementable_traits<Iter>::difference_type&>())>,
-      same_as<Iter&, decltype(std::declval<Iter&>()-=std::declval<typename incrementable_traits<Iter>::difference_type&>())>,
-      same_as<Iter, decltype(std::declval<Iter&>()+std::declval<typename incrementable_traits<Iter>::difference_type&>())>,
-      same_as<Iter, decltype(std::declval<typename incrementable_traits<Iter>::difference_type&>()+std::declval<Iter&>())>,
-      same_as<Iter, decltype(std::declval<Iter&>()-std::declval<typename incrementable_traits<Iter>::difference_type&>())>,
-      same_as<typename incrementable_traits<Iter>::difference_type,decltype(std::declval<Iter&>()-std::declval<Iter&>())>,
-      convertible_to<decltype(std::declval<Iter&>()[std::declval<typename incrementable_traits<Iter>::difference_type&>()]),iter_difference_t<Iter>>
-    >>
+template<class Iter>
+CXX17_CONCEPT _is_cpp17_iterator = _cpp17_iterator<Iter>::value&&copyable<Iter>;
+
+template<class Iter,class =void>
+struct _cpp17_input_iterator
+  :std::false_type
+{};
+
+template<class _Iter>
+struct _cpp17_input_iterator<_Iter,
+  std::void_t<typename incrementable_traits<_Iter>::difference_type,
+    typename indirectly_readable_traits<_Iter>::value_type,
+    meta::common_reference_t<iter_reference_t<_Iter>&&,typename indirectly_readable_traits<_Iter>::value_type&>,
+    meta::common_reference_t<decltype(*std::declval<_Iter&>()++)&&,typename indirectly_readable_traits<_Iter>::value_type&>>>
+  :std::bool_constant<_is_cpp17_iterator<_Iter>
+  && equality_comparable<_Iter>
+  &&signed_integral<typename incrementable_traits<_Iter>::difference_type>>
+{};
+
+template<class Iter>
+CXX17_CONCEPT _is_cpp17_input_iterator = _cpp17_input_iterator<Iter>::value;
+
+template<class Iter,class =void>
+struct _cpp_fwd_iterator
+  :std::false_type
+{};
+
+template<class Iter>
+struct _cpp_fwd_iterator<Iter,std::enable_if_t<
+  convertible_to<decltype(std::declval<Iter&>()++),const Iter&>
+  &&same_as<decltype(*std::declval<Iter&>()++), iter_reference_t<Iter>>>>
     :std::true_type
-  {};
+{};
+
+template<class Iter>
+CXX17_CONCEPT _is_cpp17_fwd_iterator
+  = _is_cpp17_input_iterator<Iter>
+  && constructible_from<Iter>
+  && std::is_lvalue_reference_v<iter_reference_t<Iter>>
+  &&same_as<meta::remove_cvref_t<iter_reference_t<Iter>>,typename indirectly_readable_traits<Iter>::value_type>
+  &&_cpp_fwd_iterator<Iter>::value;
+
+template<class Iter,class =void>
+struct _cpp_bidi_iterator
+  :std::false_type
+{};
+
+template<class Iter>
+struct _cpp_bidi_iterator<Iter,std::enable_if_t<
+  convertible_to<decltype(std::declval<Iter&>()--),const Iter&>
+  &&same_as<decltype(--std::declval<Iter&>()),Iter&>
+  &&same_as<decltype(*std::declval<Iter&>()--), iter_reference_t<Iter>>>>
+  :std::true_type
+{};
+
+template<class Iter>
+CXX17_CONCEPT  _is_cpp17_bidi_iterator = _is_cpp17_fwd_iterator<Iter>&&_cpp_bidi_iterator<Iter>::value;
+
+template<class Iter,class = void>
+struct _cpp17_random_access_iterator
+  :std::false_type
+{};
+
+template<class Iter>
+struct _cpp17_random_access_iterator<Iter,
+  meta::_require_t<
+  same_as<Iter&, decltype(std::declval<Iter&>()+=std::declval<typename incrementable_traits<Iter>::difference_type&>())>,
+  same_as<Iter&, decltype(std::declval<Iter&>()-=std::declval<typename incrementable_traits<Iter>::difference_type&>())>,
+  same_as<Iter, decltype(std::declval<Iter&>()+std::declval<typename incrementable_traits<Iter>::difference_type&>())>,
+  same_as<Iter, decltype(std::declval<typename incrementable_traits<Iter>::difference_type&>()+std::declval<Iter&>())>,
+  same_as<Iter, decltype(std::declval<Iter&>()-std::declval<typename incrementable_traits<Iter>::difference_type&>())>,
+  same_as<typename incrementable_traits<Iter>::difference_type,decltype(std::declval<Iter&>()-std::declval<Iter&>())>,
+  convertible_to<decltype(std::declval<Iter&>()[std::declval<typename incrementable_traits<Iter>::difference_type&>()]),iter_difference_t<Iter>>
+>>
+:std::true_type
+{};
+
+template<class Iter>
+CXX17_CONCEPT _is_cpp17_random_access_iterator
+= _is_cpp17_bidi_iterator<Iter>
+ && totally_ordered<Iter>
+ && _cpp17_random_access_iterator<Iter>::value;
+
+template<class,class=void>
+struct  _iter_with_nested_types_
+  :std::false_type
+{};
+
+template<class Iter>
+struct  _iter_with_nested_types_<Iter,std::void_t<
+typename Iter::iterator_category,
+typename Iter::value_type,
+typename Iter::difference_type,
+typename Iter::reference>>
+:std::true_type
+{};
+
+//检测是否包含类型
+template<class Iter>
+CXX17_CONCEPT _iter_with_nested_types=_iter_with_nested_types_<Iter>::value;
+
+template<class Iterator>
+struct _iterator_traits<Iterator,std::enable_if_t<_iter_with_nested_types<Iterator>>>
+{
+private:
+template<class,class=void>
+struct _traits_ptr
+{ using type = void; };
+
+template<class Iter>
+struct _traits_ptr<Iter,std::void_t<typename Iter::pointer>>
+{ using type = typename Iter::pointer; };
+
+public:
+using iterator_category = typename Iterator::iterator_category;
+using value_type	      = typename Iterator::value_type;
+using difference_type   = typename Iterator::difference_type;
+using pointer	      = typename _traits_ptr<Iterator>::type;
+using reference	      = typename Iterator::reference;
+};
+
+template<class Iterator>
+struct _iterator_traits<Iterator,std::enable_if_t<!_iter_with_nested_types<Iterator>
+&&_is_cpp17_input_iterator<Iterator>>>
+{
+private:
+template<int tag,class Iter,class =void >
+struct _traits_category
+  :_traits_category<tag+1,Iter>
+{};
+
+template<class Iter>
+struct _traits_category<1,Iter,std::void_t<typename Iter::iterator_category>>
+{ using type = typename Iter::iterator_category; };
+
+template<class Iter>
+struct _traits_category<2,Iter,std::enable_if_t<_is_cpp17_random_access_iterator<Iter>>>
+{ using type = random_access_iterator_tag; };
+
+template<class Iter>
+struct _traits_category<3,Iter,std::enable_if_t<_is_cpp17_bidi_iterator<Iter>>>
+{ using type = bidirectional_iterator_tag; };
+
+template<class Iter>
+struct _traits_category<4,Iter,std::enable_if_t<_is_cpp17_fwd_iterator<Iter>>>
+{ using type = forward_iterator_tag; };
+
+template<class Iter>
+struct _traits_category<5,Iter>
+{using type=input_iterator_tag;};
+
+template<int model,class Iter,class=void>
+struct _traits_ptr
+  :_traits_ptr<model+1,Iter>
+{};
+
+template<class Iter>
+struct _traits_ptr<1,Iter,std::void_t<typename Iter::pointer>>
+{ using type = typename Iter::pointer; };
+
+template<class Iter>
+struct _traits_ptr<2,Iter,std::void_t<decltype(std::declval<Iter&>().operator->())>>
+{ using type = decltype(std::declval<Iter&>().operator->()); };
+
+template<class Iter>
+struct _traits_ptr<3,Iter>
+{
+  using type=void;
+};
+
+template<class Iter,class =void >
+struct _traits_ref
+{ using type = iter_reference_t<Iter>; };
+
+template<class Iter>
+struct _traits_ref<Iter,std::void_t<typename Iter::reference>>
+{ using type = typename Iter::reference; };
+
+public:
+using iterator_category = typename _traits_category<1,Iterator>::type;
+using value_type
+  = typename indirectly_readable_traits<Iterator>::value_type;
+using difference_type
+  = typename incrementable_traits<Iterator>::difference_type;
+using pointer	      = typename _traits_ptr<1,Iterator>::type;
+using reference	      = typename _traits_ref<Iterator>::type;
+};
+
+template<class Iterator>
+struct _iterator_traits<Iterator,
+  std::enable_if_t<!_iter_with_nested_types<Iterator>
+ &&_is_cpp17_iterator<Iterator>
+ &&!_is_cpp17_input_iterator<Iterator>>>
+{
+private:
+  template<class Iter,class= void>
+  struct _traits_diff
+  { using type = void; };
   
   template<class Iter>
-  CXX17_CONCEPT _is_cpp17_random_access_iterator
-    = _is_cpp17_bidi_iterator<Iter>
-     && totally_ordered<Iter>
-     && _cpp17_random_access_iterator<Iter>::value;
-    
-    template<class,class=void>
-    struct  _iter_with_nested_types_
-      :std::false_type
-    {};
-    
-  template<class Iter>
-  struct  _iter_with_nested_types_<Iter,std::void_t<
-    typename Iter::iterator_category,
-    typename Iter::value_type,
-    typename Iter::difference_type,
-    typename Iter::reference>>
-    :std::true_type
-  {};
-  
-  //检测是否包含类型
-  template<class Iter>
-  CXX17_CONCEPT _iter_with_nested_types=_iter_with_nested_types_<Iter>::value;
-  
-  template<class Iterator>
-  struct _iterator_traits<Iterator,std::enable_if_t<_iter_with_nested_types<Iterator>>>
+  struct _traits_diff<Iter,
+    std::void_t<typename incrementable_traits<Iter>::difference_type>>
   {
-  private:
-    template<class,class=void>
-    struct _traits_ptr
-    { using type = void; };
-    
-    template<class Iter>
-    struct _traits_ptr<Iter,std::void_t<typename Iter::pointer>>
-    { using type = typename Iter::pointer; };
-  
-  public:
-    using iterator_category = typename Iterator::iterator_category;
-    using value_type	      = typename Iterator::value_type;
-    using difference_type   = typename Iterator::difference_type;
-    using pointer	      = typename _traits_ptr<Iterator>::type;
-    using reference	      = typename Iterator::reference;
+    using type = typename incrementable_traits<Iter>::difference_type;
   };
-  
-  template<class Iterator>
-  struct _iterator_traits<Iterator,std::enable_if_t<!_iter_with_nested_types<Iterator>
-    &&_is_cpp17_input_iterator<Iterator>>>
-  {
-  private:
-    template<int tag,class Iter,class =void >
-    struct _traits_category
-      :_traits_category<tag+1,Iter>
-    {};
-    
-    template<class _Iter>
-    struct _traits_category<1,_Iter,std::void_t<typename _Iter::iterator_category>>
-    { using type = typename _Iter::iterator_category; };
-    
-    template<class _Iter>
-    struct _traits_category<2,_Iter,std::enable_if_t<_is_cpp17_random_access_iterator<_Iter>>>
-    { using type = random_access_iterator_tag; };
-    
-    template<class _Iter>
-    struct _traits_category<3,_Iter,std::enable_if_t<_is_cpp17_bidi_iterator<_Iter>>>
-    { using type = bidirectional_iterator_tag; };
-    
-    template<class _Iter>
-    struct _traits_category<4,_Iter,std::enable_if_t<_is_cpp17_fwd_iterator<_Iter>>>
-    { using type = forward_iterator_tag; };
-    
-    template<class Iter>
-    struct _traits_category<5,Iter>
-    {using type=input_iterator_tag;};
-    
-    template<int model,class Iter,class=void>
-    struct _traits_ptr
-      :_traits_ptr<model+1,Iter>
-    {
-    };
-    
-    template<class Iter>
-    struct _traits_ptr<1,Iter,std::void_t<typename Iter::pointer>>
-    { using type = typename Iter::pointer; };
-    
-    template<class Iter>
-    struct _traits_ptr<2,Iter,std::void_t<decltype(std::declval<Iter&>().operator->())>>
-    { using type = decltype(std::declval<Iter&>().operator->()); };
-    
-    template<class Iter>
-    struct _traits_ptr<3,Iter>
-    {
-      using type=void;
-    };
-    
-    template<class Iter,class =void >
-    struct _traits_ref
-    { using type = iter_reference_t<Iter>; };
-    
-    template<class Iter>
-    struct _traits_ref<Iter,std::void_t<typename Iter::reference>>
-    { using type = typename Iter::reference; };
-  
-  public:
-    using iterator_category = typename _traits_category<1,Iterator>::type;
-    using value_type
-      = typename indirectly_readable_traits<Iterator>::value_type;
-    using difference_type
-      = typename incrementable_traits<Iterator>::difference_type;
-    using pointer	      = typename _traits_ptr<1,Iterator>::type;
-    using reference	      = typename _traits_ref<Iterator>::type;
-  };
-    
-    template<class Iterator>
-    struct _iterator_traits<Iterator,
-      std::enable_if_t<!_iter_with_nested_types<Iterator>
-     &&_is_cpp17_iterator<Iterator>
-     &&!_is_cpp17_input_iterator<Iterator>>>
-    {
-    private:
-      template<class Iter,class= void>
-      struct _traits_diff
-      { using type = void; };
-      
-      template<class Iter>
-      struct _traits_diff<Iter,
-        std::void_t<typename incrementable_traits<Iter>::difference_type>>
-      {
-        using type = typename incrementable_traits<Iter>::difference_type;
-      };
-    
-    public:
-      using iterator_category = output_iterator_tag;
-      using value_type	      = void;
-      using difference_type   = typename _traits_diff<Iterator>::type;
-      using pointer	      = void;
-      using reference	      = void;
-    };
-    
-  }
+
+public:
+  using iterator_category = output_iterator_tag;
+  using value_type	      = void;
+  using difference_type   = typename _traits_diff<Iterator>::type;
+  using pointer	      = void;
+  using reference	      = void;
+};
+
 }
-///_iter_concepts
+///_iter_concept
 namespace preview
 {
   namespace _details
   {
+    template<class Iter>
+    using ITER_TRAITS = std::conditional_t<_is_specialization_v<Iter>,iterator_traits<Iter>,Iter>;;
+    
     template<int tag,class Iter,typename =void>
     struct _iter_concept_impl
       :_iter_concept_impl<tag+1,Iter>
     {};
     
-    template<typename _Iter>
-    struct _iter_concept_impl<1,_Iter,std::void_t< typename iterator_traits<_Iter>::iterator_concept>>
-    { using type = typename iterator_traits<_Iter>::iterator_concept; };
+    template<typename Iter>
+    struct _iter_concept_impl<1,Iter,std::void_t< typename ITER_TRAITS<Iter>::iterator_concept>>
+    { using type = typename ITER_TRAITS<Iter>::iterator_concept; };
     
     template<class Iter>
-    struct _iter_concept_impl<2,Iter,std::void_t< typename iterator_traits<Iter>::iterator_category>>
-    { using type = typename iterator_traits<Iter>::iterator_category; };
+    struct _iter_concept_impl<2,Iter,std::void_t< typename ITER_TRAITS<Iter>::iterator_category>>
+    { using type = typename ITER_TRAITS<Iter>::iterator_category; };
     
     template<class Iter>
     struct _iter_concept_impl<3,Iter,std::enable_if_t<!_is_specialization_v<Iter>>>
@@ -528,9 +531,7 @@ namespace preview
     template<typename Iter>
     struct _iter_concept_impl<4,Iter>
     { };
-    
   }
-  
   // ITER_CONCEPT
   template<class Iter>
   using _iter_concept = typename _details::_iter_concept_impl<1,Iter>::type;
@@ -549,12 +550,16 @@ namespace preview
     struct _indirectly_readable<In,
       std::void_t<iter_value_t<In>,
                   iter_reference_t<In>,
-                  iter_rvalue_reference_t<In>>>
-                  :std::bool_constant<common_reference_with<iter_reference_t<In>&&, iter_value_t<In>&>
-                                      &&common_reference_with<iter_reference_t<In>&&, iter_rvalue_reference_t<In>&&>
-                                      &&common_reference_with<iter_rvalue_reference_t<In>&&, const iter_value_t<In>&>
-                                      &&same_as<decltype(*std::declval<const In&>()),iter_reference_t<In>>
-                                      &&same_as<decltype(ranges::iter_move(std::declval<const In&>())),iter_rvalue_reference_t<In>>>
+                  iter_rvalue_reference_t<In>,
+                  meta::_require_t<same_as<iter_reference_t<const In>,iter_reference_t<In>>,
+                  same_as<iter_rvalue_reference_t<const In>,iter_rvalue_reference_t<In>>,
+                  common_reference_with<iter_reference_t<In>&&, iter_value_t<In>&>,
+                  common_reference_with<iter_reference_t<In>&&,iter_rvalue_reference_t<In>&&>,
+                  common_reference_with<iter_rvalue_reference_t<In>&&,const iter_value_t<In>&>
+                  >//require_t
+                  >//void_t
+                  >
+                  :std::true_type
     {};
   }
 ///std::indirectly_readable
@@ -919,7 +924,6 @@ namespace preview
       &&constructible_from<iter_value_t<In>, iter_reference_t<In>>
       &&assignable_from<iter_value_t<In>&, iter_reference_t<In>>;
 }
-
 ///iter_swap cpo
 namespace preview::ranges
 {
@@ -1002,9 +1006,8 @@ namespace preview::ranges
     inline constexpr _details::IterSwap::_iter_swap iter_swap{};
   }
 }
-
-///Predicate
-namespace preview
+///std::ranges comp predicate
+namespace preview::ranges
 {
   struct identity
   {
@@ -1045,7 +1048,7 @@ namespace preview
     noexcept(noexcept(std::declval<T>() < std::declval<U>()))
       -> std::enable_if_t<totally_ordered_with<T, U>, bool>
     {
-      return std::less<>{}(std::forward<T>(t), std::forward<U>(u));
+      return std::forward<T>(t)<std::forward<U>(u);
     }
     
     using is_transparent = std::true_type;
@@ -1090,10 +1093,7 @@ namespace preview
     using is_transparent = std::true_type;
   };
 }
-
-/*
- * indirectly_swappable
-*/
+///indirectly_swappable
 namespace preview
 {
   template<class A,class B,class = void>
@@ -1119,8 +1119,8 @@ namespace preview
         &&_indirectly_swappable<A,B>::value;
   
   template<class I1,class I2,class Rel,
-    class P1=identity,
-    class P2=identity>
+    class P1=ranges::identity,
+    class P2=ranges::identity>
   CXX17_CONCEPT indirectly_comparable
     = indirect_binary_predicate<Rel,projected<I1,P1>,
       projected<I2,P2>>;
@@ -1132,8 +1132,8 @@ namespace preview
       && indirectly_swappable<Iter,Iter>;
   
   template<class I1,class I2,class Out,
-    typename Rel = less,class P1 = identity,
-    typename P2 = identity>
+    typename Rel = ranges::less,class P1 = ranges::identity,
+    typename P2 = ranges::identity>
   CXX17_CONCEPT mergeable
         = input_iterator<I1>
       && input_iterator<I2>
@@ -1142,8 +1142,8 @@ namespace preview
       && indirectly_copyable<I2,Out>
       && indirect_strict_weak_order<Rel, projected<I1,P1>,projected<I2,P2>>;
   
-  template<class Iter,class Rel = less,
-    typename Proj = identity>
+  template<class Iter,class Rel = ranges::less,
+    typename Proj = ranges::identity>
   CXX17_CONCEPT sortable
       = permutable<Iter>
      && indirect_strict_weak_order<Rel,projected<Iter,Proj>>;
@@ -1160,4 +1160,4 @@ namespace preview
 
 }
 
-#endif //UTILITY_ITERATOR_CONCEPT_HPP
+#endif
