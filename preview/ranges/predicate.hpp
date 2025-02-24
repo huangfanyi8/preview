@@ -1,5 +1,5 @@
-#ifndef PREVIEW_PREDICATE_HPP
-#define PREVIEW_PREDICATE_HPP
+#ifndef PREVIEW_RANGES_PREDICATE_HPP
+#define PREVIEW_RANGES_PREDICATE_HPP
 
 #include "../concepts/comparison.hpp"
 
@@ -130,4 +130,4 @@ namespace preview::ranges
   };
 }
 
-#endif //PREVIEW_PREDICATE_HPP
+#endif
