@@ -357,7 +357,7 @@ namespace preview
   }
   namespace _details
   {
-    template<class T,class U,class =int >
+    template<class T,class U,class = void>
     struct _partially_ordered_with_helper
       :std::false_type
     {};
