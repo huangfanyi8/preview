@@ -367,4 +367,18 @@ namespace meta
     template<class...Types>
     using common_reference_t=typename common_reference<Types...>::type;
 }
+
+namespace meta
+{
+    template<class From, class To,class  = void>
+    struct is_nothrow_convertible
+        : std::conjunction<std::is_void<From>, std::is_void<To>>
+    {};
+    
+    template<class From, class To>
+    struct is_nothrow_convertible<From, To,std::void_t<decltype(static_cast<To(*)()>(nullptr)),
+        std::enable_if_t<noexcept(std::declval<void(&)(To) noexcept>()(std::declval<From>()))>>>
+        : std::true_type
+    {};
+}
 #endif
