@@ -40,7 +40,7 @@ inline constexpr bool
 
 namespace meta
 {
-  //通用类型，未定乂类型
+  //通用未定乂类型
   class undefined{};
   
   template<class T>struct type_identity{using type=T;};
@@ -380,5 +380,36 @@ namespace meta
         std::enable_if_t<noexcept(std::declval<void(&)(To) noexcept>()(std::declval<From>()))>>>
         : std::true_type
     {};
+    
+    template<class T>
+    struct is_bounded_array : std::false_type {};
+    
+    template<class T, std::size_t N>
+    struct is_bounded_array<T[N]> : std::true_type {};
+    
+    template<class From, class To>
+    inline constexpr bool is_nothrow_convertible_v = is_nothrow_convertible<From,To>::value;
+    
+    template<class T>
+    inline constexpr bool is_bounded_array_v = is_bounded_array<T>::value;
+    
+    template<class T>
+    using CT=std::conditional_t<std::is_lvalue_reference_v<T>,const std::remove_reference_t<T>&,const T>;
+}
+
+namespace meta
+{
+    template<class AlwaysVoid,class Class,class...Args>
+    struct _require_helper
+        :std::false_type
+    {};
+    
+    template<class Class,class...Args>
+    struct _require_helper<std::void_t<decltype(&Class::template _valid<Args...>)>,Class,Args...>
+        :std::true_type
+    {};
+    
+    template<class SomeClass,class...Args>
+    inline constexpr auto _cxx17_requires=_require_helper<void,SomeClass,Args...>::value;
 }
 #endif
