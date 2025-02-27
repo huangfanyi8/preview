@@ -2,7 +2,7 @@
 #define UTILITY_SINGLE_ITERATOR_CONCEPT_HPP
 
 #include<iterator>
-#include"../../concepts/single/concepts.hpp"
+#include"../concepts/concepts.hpp"
 
 ///_iterator tag
 namespace preview
@@ -97,36 +97,28 @@ namespace preview
 ///iterator_traits forward declaration
 namespace preview
 {
-  namespace _details
-  {
-    template<class,class = void>
-    struct _iterator_traits
-    {};
-  }
+    template<class,class>struct iterator_traits;
+    namespace _details
+      {
+        template<class,class = void>
+        struct _iterator_traits
+        {};
+      }
   
   template<class Iterator,class=void>
   struct iterator_traits
-    :public _details::_iterator_traits<Iterator,void>
+    :public _details::_iterator_traits<Iterator>
   { };
   
   template<class T>
-  struct iterator_traits<T*>
+  struct iterator_traits<T*,std::enable_if_t<std::is_object_v<T>>>
   {
-    typedef random_access_iterator_tag  iterator_category;
-    typedef T                           value_type;
-    typedef ptrdiff_t                   difference_type;
-    typedef T*                          pointer;
-    typedef T&                          reference;
-  };
-  
-  template<class T>
-  struct iterator_traits<const T*>
-  {
-    typedef random_access_iterator_tag iterator_category;
-    typedef T                         value_type;
-    typedef ptrdiff_t                   difference_type;
-    typedef const T*                  pointer;
-    typedef const T&                  reference;
+      using iterator_concept  = contiguous_iterator_tag;
+      using iterator_category = random_access_iterator_tag;
+      using value_type	      = std::remove_cv_t<T>;
+      using difference_type   = ptrdiff_t;
+      using pointer	      = T*;
+      using reference	      = T&;
   };
   
   //检查iterator_traits 是否被特化
@@ -142,7 +134,7 @@ namespace preview
     //计算类型 I 所关联的差类型
     template <int tag,class T,class U= void>
     struct _incrementable_traits
-      :_incrementable_traits<tag+1,T,U>
+      :_incrementable_traits<tag+1,T>
     {};
     
     template <class T>
@@ -173,23 +165,43 @@ namespace preview
   
   template <class T,class=void>
   struct incrementable_traits
-  {using difference_type=typename _details::_incrementable_traits<1,T>::type;};
+  {};
+    
+    template <class T>
+    struct incrementable_traits<T,
+        std::void_t<typename _details::_incrementable_traits<1,T>::type>>
+    {using difference_type=typename _details::_incrementable_traits<1,T>::type;};
 }
 ///iter_difference_t
 namespace preview
 {
-  template<class Iter,class =void>
-  struct iter_difference
-    :meta::type_identity<typename incrementable_traits<meta::remove_cvref_t<Iter>>::difference_type >
-  {};
-  
-  template<class Iter>
-  struct iter_difference<Iter,std::enable_if_t<_is_specialization_v<meta::remove_cvref_t<Iter>>>>
-    :meta::type_identity<typename iterator_traits<meta::remove_cvref_t<Iter>>::difference_type>
-  {};
-  
+    namespace _details
+    {
+        template<class Iter,int _v,class = void>
+        struct _iter_difference
+            :_iter_difference<Iter,_v+1>
+        {};
+        
+        template<class Iter>
+        struct _iter_difference<Iter,0,
+            std::void_t<typename iterator_traits<meta::remove_cvref_t<Iter>>::difference_type,
+            std::enable_if_t<_is_specialization_v<meta::remove_cvref_t<Iter>>>>>
+        {
+            using type = typename iterator_traits<meta::remove_cvref_t<Iter>>::difference_type;
+        };
+        
+        template<class Iter>
+        struct _iter_difference<Iter,1,std::void_t<typename incrementable_traits<meta::remove_cvref_t<Iter>>::difference_type>>
+            :meta::type_identity<typename incrementable_traits<meta::remove_cvref_t<Iter>>::difference_type>
+        {};
+        
+        template<class T>
+        struct _iter_difference<T,2>
+        {};
+    }
+    
   template <class Iter,class T=meta::remove_cvref_t<Iter>>
-  using iter_difference_t = typename iter_difference<T>::type;
+  using iter_difference_t = typename _details::_iter_difference<T,0>::type;
 }
 ///indirectly_readable_traits
 namespace preview
@@ -236,9 +248,7 @@ namespace preview
   template <class T>
   struct indirectly_readable_traits
     :_details::_indirectly_readable_traits<1,T>
-  {
-  
-  };
+  {};
 }
 ///iter_value_t
 namespace preview
@@ -263,8 +273,8 @@ namespace preview
     struct iter_value<Iter,1>
     {};
     
-  template <class Iter,class Tn = meta::remove_cvref_t<Iter>>
-  using iter_value_t=typename iter_value<Iter,-1>::type;
+  template <class Iter,class T = meta::remove_cvref_t<Iter>>
+  using iter_value_t=typename iter_value<T,-1>::type;
 }
 ///iter_rvalue_reference_t
 namespace preview
@@ -296,15 +306,15 @@ struct _cpp17_input_iterator
   :std::false_type
 {};
 
-template<class _Iter>
-struct _cpp17_input_iterator<_Iter,
-  std::void_t<typename incrementable_traits<_Iter>::difference_type,
-    typename indirectly_readable_traits<_Iter>::value_type,
-    meta::common_reference_t<iter_reference_t<_Iter>&&,typename indirectly_readable_traits<_Iter>::value_type&>,
-    meta::common_reference_t<decltype(*std::declval<_Iter&>()++)&&,typename indirectly_readable_traits<_Iter>::value_type&>>>
-  :std::bool_constant<_is_cpp17_iterator<_Iter>
-  && equality_comparable<_Iter>
-  &&signed_integral<typename incrementable_traits<_Iter>::difference_type>>
+template<class Iter>
+struct _cpp17_input_iterator<Iter,
+  std::void_t<typename incrementable_traits<Iter>::difference_type,
+    typename indirectly_readable_traits<Iter>::value_type,
+    meta::common_reference_t<iter_reference_t<Iter>&&,typename indirectly_readable_traits<Iter>::value_type&>,
+    meta::common_reference_t<decltype(*std::declval<Iter&>()++)&&,typename indirectly_readable_traits<Iter>::value_type&>>>
+  :std::bool_constant<_is_cpp17_iterator<Iter>
+  && equality_comparable<Iter>
+  &&signed_integral<typename incrementable_traits<Iter>::difference_type>>
 {};
 
 template<class Iter>
@@ -410,70 +420,69 @@ using reference	      = typename Iterator::reference;
 };
 
 template<class Iterator>
-struct _iterator_traits<Iterator,std::enable_if_t<!_iter_with_nested_types<Iterator>
-&&_is_cpp17_input_iterator<Iterator>>>
+struct _iterator_traits<Iterator,std::enable_if_t<!_iter_with_nested_types<Iterator>&&_is_cpp17_input_iterator<Iterator>>>
 {
 private:
-template<int tag,class Iter,class =void >
-struct _traits_category
-  :_traits_category<tag+1,Iter>
-{};
-
-template<class Iter>
-struct _traits_category<1,Iter,std::void_t<typename Iter::iterator_category>>
-{ using type = typename Iter::iterator_category; };
-
-template<class Iter>
-struct _traits_category<2,Iter,std::enable_if_t<_is_cpp17_random_access_iterator<Iter>>>
-{ using type = random_access_iterator_tag; };
-
-template<class Iter>
-struct _traits_category<3,Iter,std::enable_if_t<_is_cpp17_bidi_iterator<Iter>>>
-{ using type = bidirectional_iterator_tag; };
-
-template<class Iter>
-struct _traits_category<4,Iter,std::enable_if_t<_is_cpp17_fwd_iterator<Iter>>>
-{ using type = forward_iterator_tag; };
-
-template<class Iter>
-struct _traits_category<5,Iter>
-{using type=input_iterator_tag;};
-
-template<int model,class Iter,class=void>
-struct _traits_ptr
-  :_traits_ptr<model+1,Iter>
-{};
-
-template<class Iter>
-struct _traits_ptr<1,Iter,std::void_t<typename Iter::pointer>>
-{ using type = typename Iter::pointer; };
-
-template<class Iter>
-struct _traits_ptr<2,Iter,std::void_t<decltype(std::declval<Iter&>().operator->())>>
-{ using type = decltype(std::declval<Iter&>().operator->()); };
-
-template<class Iter>
-struct _traits_ptr<3,Iter>
-{
-  using type=void;
-};
-
-template<class Iter,class =void >
-struct _traits_ref
-{ using type = iter_reference_t<Iter>; };
-
-template<class Iter>
-struct _traits_ref<Iter,std::void_t<typename Iter::reference>>
-{ using type = typename Iter::reference; };
+    template<int tag,class Iter,class =void >
+    struct _traits_category
+      :_traits_category<tag+1,Iter>
+    {};
+    
+    template<class Iter>
+    struct _traits_category<1,Iter,std::void_t<typename Iter::iterator_category>>
+    { using type = typename Iter::iterator_category; };
+    
+    template<class Iter>
+    struct _traits_category<2,Iter,std::enable_if_t<_is_cpp17_random_access_iterator<Iter>>>
+    { using type = random_access_iterator_tag; };
+    
+    template<class Iter>
+    struct _traits_category<3,Iter,std::enable_if_t<_is_cpp17_bidi_iterator<Iter>>>
+    { using type = bidirectional_iterator_tag; };
+    
+    template<class Iter>
+    struct _traits_category<4,Iter,std::enable_if_t<_is_cpp17_fwd_iterator<Iter>>>
+    { using type = forward_iterator_tag; };
+    
+    template<class Iter>
+    struct _traits_category<5,Iter>
+    {using type=input_iterator_tag;};
+    
+    template<int model,class Iter,class=void>
+    struct _traits_ptr
+      :_traits_ptr<model+1,Iter>
+    {};
+    
+    template<class Iter>
+    struct _traits_ptr<1,Iter,std::void_t<typename Iter::pointer>>
+    { using type = typename Iter::pointer; };
+    
+    template<class Iter>
+    struct _traits_ptr<2,Iter,std::void_t<decltype(std::declval<Iter&>().operator->())>>
+    { using type = decltype(std::declval<Iter&>().operator->()); };
+    
+    template<class Iter>
+    struct _traits_ptr<3,Iter>
+    {
+      using type=void;
+    };
+    
+    template<class Iter,class =void >
+    struct _traits_ref
+    { using type = iter_reference_t<Iter>; };
+    
+    template<class Iter>
+    struct _traits_ref<Iter,std::void_t<typename Iter::reference>>
+    { using type = typename Iter::reference; };
 
 public:
-using iterator_category = typename _traits_category<1,Iterator>::type;
-using value_type
-  = typename indirectly_readable_traits<Iterator>::value_type;
-using difference_type
-  = typename incrementable_traits<Iterator>::difference_type;
-using pointer	      = typename _traits_ptr<1,Iterator>::type;
-using reference	      = typename _traits_ref<Iterator>::type;
+    using iterator_category = typename _traits_category<1,Iterator>::type;
+    using value_type
+      = typename indirectly_readable_traits<Iterator>::value_type;
+    using difference_type
+      = typename incrementable_traits<Iterator>::difference_type;
+    using pointer	      = typename _traits_ptr<1,Iterator>::type;
+    using reference	      = typename _traits_ref<Iterator>::type;
 };
 
 template<class Iterator>
@@ -809,66 +818,164 @@ namespace preview
       && same_as<iter_value_t<Iter>, meta::remove_cvref_t<iter_reference_t<Iter>>>
       && _iterator_category_concepts<4>::_impl<Iter>::value;
 }
+///Indirect callable concepts help
+namespace preview::_details
+{
+    template<class Fn,class Iter,class = void>
+    struct  _indirectly_unary_invocable
+        :std::false_type
+    {};
+    
+    template<class Fn,class Iter>
+    struct  _indirectly_unary_invocable<Fn,Iter,std::enable_if_t<indirectly_readable<Iter>
+                                                                 && copy_constructible<Fn>
+                                                                 && invocable<Fn&,iter_value_t<Iter>&>
+                                                                 && invocable<Fn&,iter_reference_t<Iter>>
+                                                                 && invocable<Fn&,iter_common_reference_t<Iter>>
+                                                                 &&common_reference_with<std::invoke_result_t<Fn&,iter_value_t<Iter>&>,
+        std::invoke_result_t<Fn&,iter_reference_t<Iter>>>>>
+        :std::true_type
+    {};
+    
+    template<class Fn,class Iter,class = void>
+    struct  _indirectly_regular_unary_invocable
+        :std::false_type
+    {};
+    
+    template<class Fn,class Iter>
+    struct  _indirectly_regular_unary_invocable<Fn,Iter,std::enable_if_t<indirectly_readable<Iter>
+                                                                         &&copy_constructible<Fn>
+                                                                         &&regular_invocable<Fn&, iter_value_t<Iter>&>
+                                                                         &&regular_invocable<Fn&, iter_reference_t<Iter>>
+                                                                         &&regular_invocable<Fn&, iter_common_reference_t<Iter>>
+                                                                         &&common_reference_with<std::invoke_result_t<Fn&, iter_value_t<Iter>&>,std::invoke_result_t<Fn&, iter_reference_t<Iter>>>>>
+        :std::true_type
+    {};
+    
+    template<typename Fn, typename Iter,class = void>
+    struct _indirect_unary_predicate:std::false_type {};
+    
+    template<typename Fn, typename Iter>
+    struct _indirect_unary_predicate<Fn,Iter,std::enable_if_t<indirectly_readable<Iter>
+                                             && copy_constructible<Fn> && predicate<Fn&, iter_value_t<Iter>&>
+                                             && predicate<Fn&, iter_reference_t<Iter>>
+                                             && predicate<Fn&, iter_common_reference_t<Iter>>>>
+                                             :std::true_type
+        {};
+    
+    template<class Fn, class I1, class I2,class = void>
+    struct _indirect_binary_predicate:std::false_type {};
+    
+    template<class Fn, class I1, class I2>
+    struct _indirect_binary_predicate<Fn,I1,I2,std::enable_if_t<indirectly_readable<I1> && indirectly_readable<I2>
+          && copy_constructible<Fn>
+          && predicate<Fn&, iter_value_t<I1>&, iter_value_t<I2>&>
+          && predicate<Fn&, iter_value_t<I1>&, iter_reference_t<I2>>
+          && predicate<Fn&, iter_reference_t<I1>, iter_value_t<I2>&>
+          && predicate<Fn&, iter_reference_t<I1>, iter_reference_t<I2>>
+          && predicate<Fn&, iter_common_reference_t<I1>,
+            iter_common_reference_t<I2>>>>
+            :std::true_type
+    {};
+    
+    template<class F,class I1,class I2 ,class = void>
+    struct  _indirect_equivalence_relation:std::false_type {};
+    
+    template<class F,class I1,class I2 >
+    struct  _indirect_equivalence_relation<F,I1,I2,std::enable_if_t<
+        indirectly_readable<I1>
+        && indirectly_readable<I2>
+        && copy_constructible<F>
+        && equivalence_relation<F&, iter_value_t<I1>&, iter_value_t<I2>&>
+        && equivalence_relation<F&, iter_value_t<I1>&, iter_reference_t<I2>>
+        && equivalence_relation<F&, iter_reference_t<I1>, iter_value_t<I2>&>
+        && equivalence_relation<F&, iter_reference_t<I1>,iter_reference_t<I2>>
+        && equivalence_relation<F&, iter_common_reference_t<I1>,iter_common_reference_t<I2>>>>
+        :std::true_type
+    {};
+    
+    template<class F,class I1,class I2 ,class = void>
+    struct  _indirect_strict_weak_order:std::false_type {};
+    
+    template<class F,class I1,class I2 >
+    struct  _indirect_strict_weak_order<F,I1,I2,std::enable_if_t<
+        indirectly_readable<I1>
+        && indirectly_readable<I2>
+        && copy_constructible<F>
+        && strict_weak_order<F&, iter_value_t<I1>&, iter_value_t<I2>&>
+        && strict_weak_order<F&, iter_value_t<I1>&, iter_reference_t<I2>>
+        && strict_weak_order<F&, iter_reference_t<I1>, iter_value_t<I2>&>
+        && strict_weak_order<F&, iter_reference_t<I1>, iter_reference_t<I2>>
+        && strict_weak_order<F&, iter_common_reference_t<I1>,iter_common_reference_t<I2>>>>
+        :std::true_type
+    {};
+    
+    template<class In, class Out,class =void>
+    struct  _indirectly_movable:std::false_type {};
+    
+    template<class In, class Out>
+    struct  _indirectly_movable<In,Out,std::enable_if_t<indirectly_readable<In>
+                                                        && indirectly_writable<Out, iter_rvalue_reference_t<In>>>>
+        :std::true_type
+    {};
+    
+    template<class In, class Out,class =void>
+    struct  _indirectly_movable_storable:std::false_type {};
+    
+    template<class In, class Out>
+    struct  _indirectly_movable_storable<In,Out,std::enable_if_t<_indirectly_movable<In,Out>::value
+                                                                 &&indirectly_writable<Out,iter_value_t<In>>
+                                                                 &&movable<iter_value_t<In>>
+                                                                 &&constructible_from<iter_value_t<In>, iter_rvalue_reference_t<In>>
+                                                                 &&assignable_from<iter_value_t<In>&,iter_rvalue_reference_t<In>>>>
+                                                                 :std::true_type
+    {};
+    
+    template<class In, class Out,class =void>
+    struct  _indirectly_copyable:std::false_type {};
+    
+    template<class In, class Out>
+    struct  _indirectly_copyable<In,Out,std::enable_if_t<indirectly_readable<In>
+                                                         &&indirectly_writable<Out,iter_reference_t<In>>>>
+        :std::true_type
+    {};
+    
+    template<class In, class Out,class =void>
+    struct  _indirectly_copyable_storable:std::false_type {};
+    
+    template<class In, class Out>
+    struct  _indirectly_copyable_storable<In,Out,std::enable_if_t<_indirectly_copyable<In, Out>::value
+                                                 &&indirectly_writable<Out, iter_value_t<In>&>
+                                                 &&indirectly_writable<Out, const iter_value_t<In>&>
+                                                 &&indirectly_writable<Out, iter_value_t<In>&&>
+                                                 &&indirectly_writable<Out, const iter_value_t<In>&&>
+                                                 &&copyable<iter_value_t<In>>
+                                                 &&constructible_from<iter_value_t<In>, iter_reference_t<In>>
+                                                 &&assignable_from<iter_value_t<In>&, iter_reference_t<In>>>>
+        :std::true_type
+    {};
+    
+}
 ///Indirect callable concepts
 namespace preview
 {
   template<class Fn,class Iter>
-  CXX17_CONCEPT indirectly_unary_invocable
-      = indirectly_readable<Iter>
-     && copy_constructible<Fn>
-     && invocable<Fn&,iter_value_t<Iter>&>
-     && invocable<Fn&,iter_reference_t<Iter>>
-     && invocable<Fn&,iter_common_reference_t<Iter>>
-     &&common_reference_with<std::invoke_result_t<Fn&,iter_value_t<Iter>&>,
-    std::invoke_result_t<Fn&,iter_reference_t<Iter>>>;
+  CXX17_CONCEPT indirectly_unary_invocable = _details::_indirectly_unary_invocable<Fn,Iter>::value;
   
   template<typename Fn, typename Iter>
-  CXX17_CONCEPT indirectly_regular_unary_invocable
-      = indirectly_readable<Iter>
-      &&copy_constructible<Fn>
-      &&regular_invocable<Fn&, iter_value_t<Iter>&>
-      &&regular_invocable<Fn&, iter_reference_t<Iter>>
-      &&regular_invocable<Fn&, iter_common_reference_t<Iter>>
-      &&common_reference_with<std::invoke_result_t<Fn&, iter_value_t<Iter>&>,std::invoke_result_t<Fn&, iter_reference_t<Iter>>>;
+  CXX17_CONCEPT indirectly_regular_unary_invocable = _details::_indirectly_regular_unary_invocable<Fn,Iter>::value;
   
   template<typename Fn, typename Iter>
-  CXX17_CONCEPT indirect_unary_predicate = indirectly_readable<Iter>
-                                     && copy_constructible<Fn> && predicate<Fn&, iter_value_t<Iter>&>
-                                     && predicate<Fn&, iter_reference_t<Iter>>
-                                     && predicate<Fn&, iter_common_reference_t<Iter>>;
+  CXX17_CONCEPT indirect_unary_predicate = _details::_indirect_unary_predicate<Fn,Iter>::value;
   
-  template<typename _Fn, typename _I1, typename _I2>
-  CXX17_CONCEPT indirect_binary_predicate
-    = indirectly_readable<_I1> && indirectly_readable<_I2>
-      && copy_constructible<_Fn>
-      && predicate<_Fn&, iter_value_t<_I1>&, iter_value_t<_I2>&>
-  && predicate<_Fn&, iter_value_t<_I1>&, iter_reference_t<_I2>>
-    && predicate<_Fn&, iter_reference_t<_I1>, iter_value_t<_I2>&>
-  && predicate<_Fn&, iter_reference_t<_I1>, iter_reference_t<_I2>>
-    && predicate<_Fn&, iter_common_reference_t<_I1>,
-    iter_common_reference_t<_I2>>;
+  template<class Fn, class I1, class I2>
+  CXX17_CONCEPT indirect_binary_predicate = _details::_indirect_binary_predicate<Fn,I1,I2>::value;
   
   template<class F,class I1,class I2 = I1>
-  CXX17_CONCEPT indirect_equivalence_relation
-    = indirectly_readable<I1>
-      && indirectly_readable<I2>
-      && copy_constructible<F>
-      && equivalence_relation<F&, iter_value_t<I1>&, iter_value_t<I2>&>
-      && equivalence_relation<F&, iter_value_t<I1>&, iter_reference_t<I2>>
-      && equivalence_relation<F&, iter_reference_t<I1>, iter_value_t<I2>&>
-      && equivalence_relation<F&, iter_reference_t<I1>,iter_reference_t<I2>>
-      && equivalence_relation<F&, iter_common_reference_t<I1>,iter_common_reference_t<I2>>;
+  CXX17_CONCEPT indirect_equivalence_relation = _details::_indirect_equivalence_relation<F,I1,I2>::value;
   
   template<class F,class I1,class I2 = I1>
-  CXX17_CONCEPT indirect_strict_weak_order
-    = indirectly_readable<I1>
-      && indirectly_readable<I2>
-      && copy_constructible<F>
-      && strict_weak_order<F&, iter_value_t<I1>&, iter_value_t<I2>&>
-      && strict_weak_order<F&, iter_value_t<I1>&, iter_reference_t<I2>>
-      && strict_weak_order<F&, iter_reference_t<I1>, iter_value_t<I2>&>
-      && strict_weak_order<F&, iter_reference_t<I1>, iter_reference_t<I2>>
-      && strict_weak_order<F&, iter_common_reference_t<I1>,iter_common_reference_t<I2>>;
+  CXX17_CONCEPT indirect_strict_weak_order = _details::_indirect_strict_weak_order<F,I1,I2>::value;
   
   template<class F,class...Args>
   using indirect_result_t = std::invoke_result_t<F,iter_reference_t<Args>...>;
@@ -896,51 +1003,26 @@ namespace preview
   { using difference_type = iter_difference_t<Iter>; };
 
   template<class In, class Out>
-  CXX17_CONCEPT indirectly_movable
-      = indirectly_readable<In>
-     && indirectly_writable<Out, iter_rvalue_reference_t<In>>;
+  CXX17_CONCEPT indirectly_movable = _details::_indirectly_movable<In,Out>::value;
   
   template<class In, class Out>
-  CXX17_CONCEPT indirectly_movable_storable
-      = indirectly_movable<In,Out>
-      &&indirectly_writable<Out,iter_value_t<In>>
-      &&movable<iter_value_t<In>>
-      &&constructible_from<iter_value_t<In>, iter_rvalue_reference_t<In>>
-      &&assignable_from<iter_value_t<In>&,iter_rvalue_reference_t<In>>;
+  CXX17_CONCEPT indirectly_movable_storable = _details::_indirectly_movable_storable<In,Out>::value;
 
   template<typename In, typename Out>
-  CXX17_CONCEPT indirectly_copyable
-      = indirectly_readable<In>
-      &&indirectly_writable<Out,iter_reference_t<In>>;
-
-  template<typename In, typename Out>
-  CXX17_CONCEPT indirectly_copyable_storable
-      = indirectly_copyable<In, Out>
-      &&indirectly_writable<Out, iter_value_t<In>&>
-      &&indirectly_writable<Out, const iter_value_t<In>&>
-      &&indirectly_writable<Out, iter_value_t<In>&&>
-      &&indirectly_writable<Out, const iter_value_t<In>&&>
-      &&copyable<iter_value_t<In>>
-      &&constructible_from<iter_value_t<In>, iter_reference_t<In>>
-      &&assignable_from<iter_value_t<In>&, iter_reference_t<In>>;
+  CXX17_CONCEPT indirectly_copyable= _details::_indirectly_copyable<In,Out>::value;
+  
+    template<typename In, typename Out>
+  CXX17_CONCEPT indirectly_copyable_storable=   _details::_indirectly_copyable_storable<In,Out>::value;
 }
 ///iter_swap cpo
 namespace preview::ranges
 {
-  namespace _details::IterSwap
+  namespace Cpo
   {
     using std::swap;
     
     template<class A,class B>
     void iter_swap(A,B) = delete;
-    
-    struct _adl_iter_swap_helper
-    {
-      template<class T,class U>
-      auto _valid(T&&t,U&&u)
-      -> decltype(iter_swap(static_cast<T&&>(t), static_cast<U&&>(u)))
-      {}
-    };
     
     template<class ,class,class=void>
     struct _adl_iter_swap
@@ -1001,10 +1083,7 @@ namespace preview::ranges
     };
   }
   
-  inline namespace cpo
-  {
-    inline constexpr _details::IterSwap::_iter_swap iter_swap{};
-  }
+  inline constexpr Cpo::_iter_swap iter_swap{};
 }
 ///std::ranges comp predicate
 namespace preview::ranges
@@ -1118,12 +1197,37 @@ namespace preview
         &&indirectly_readable<B>
         &&_indirectly_swappable<A,B>::value;
   
-  template<class I1,class I2,class Rel,
-    class P1=ranges::identity,
-    class P2=ranges::identity>
-  CXX17_CONCEPT indirectly_comparable
-    = indirect_binary_predicate<Rel,projected<I1,P1>,
-      projected<I2,P2>>;
+  namespace _details
+  {
+      template<class I1,class I2,class Rel,class P1,class P2,class = void>
+      struct _indirectly_comparable
+          :std::false_type
+      {};
+      
+      template<class I1,class I2,class Rel,class P1,class P2>
+      struct _indirectly_comparable<I1,I2,Rel,P1,P2,std::enable_if_t<indirect_binary_predicate<Rel,projected<I1,P1>,
+          projected<I2,P2>>>>
+          :std::true_type
+      {};
+      
+      template<class I1,class I2,class Out,class Rel,class P1,class P2,class =void>
+      struct _mergeable
+          :std::false_type
+      {};
+      
+      template<class I1,class I2,class Out,class Rel,class P1,class P2>
+      struct _mergeable<I1,I2,Out,Rel,P1,P2,std::enable_if_t<input_iterator<I1>
+                                                             && input_iterator<I2>
+                                                             && weakly_incrementable<Out>
+                                                             && indirectly_copyable<I1,Out>
+                                                             && indirectly_copyable<I2,Out>
+                                                             && indirect_strict_weak_order<Rel, projected<I1,P1>,projected<I2,P2>>>>
+          :std::true_type
+      {};
+  }
+  
+  template<class I1,class I2,class Rel,class P1=ranges::identity,class P2=ranges::identity>
+  CXX17_CONCEPT indirectly_comparable = _details::_indirectly_comparable<I1,I2,Rel,P1,P2>::value;
   
   template<class Iter>
   CXX17_CONCEPT permutable
@@ -1132,21 +1236,27 @@ namespace preview
       && indirectly_swappable<Iter,Iter>;
   
   template<class I1,class I2,class Out,
-    typename Rel = ranges::less,class P1 = ranges::identity,
-    typename P2 = ranges::identity>
-  CXX17_CONCEPT mergeable
-        = input_iterator<I1>
-      && input_iterator<I2>
-      && weakly_incrementable<Out>
-      && indirectly_copyable<I1,Out>
-      && indirectly_copyable<I2,Out>
-      && indirect_strict_weak_order<Rel, projected<I1,P1>,projected<I2,P2>>;
+    class Rel = ranges::less,class P1 = ranges::identity,
+    class P2 = ranges::identity>
+  CXX17_CONCEPT mergeable = _details::_mergeable<I1,I2,Out,Rel,P1,P2>::value;
+  
+  namespace _details
+  {
+      template<class ,class,class ,class = void>
+      struct _sortable
+          :std::false_type
+      {};
+      
+      template<class Iter,class Rel,class Proj>
+      struct _sortable<Iter,Rel,Proj,std::enable_if_t<permutable<Iter>
+                                                      && indirect_strict_weak_order<Rel,projected<Iter,Proj>>>>
+          :std::true_type
+      {};
+  }
   
   template<class Iter,class Rel = ranges::less,
-    typename Proj = ranges::identity>
-  CXX17_CONCEPT sortable
-      = permutable<Iter>
-     && indirect_strict_weak_order<Rel,projected<Iter,Proj>>;
+    class Proj = ranges::identity>
+  CXX17_CONCEPT sortable = _details::_sortable<Iter,Rel,Proj>::value;
   
   struct unreachable_sentinel_t
   {
@@ -1157,7 +1267,6 @@ namespace preview
   };
   
   inline constexpr unreachable_sentinel_t unreachable_sentinel{};
-
 }
 
 #endif
