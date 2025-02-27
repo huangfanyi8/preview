@@ -3,6 +3,7 @@
 #include <iostream>
 #include <iterator>
 #include <vector>
+#include<cassert>
 
 int main()
 {
@@ -24,4 +25,22 @@ int main()
     
     std::cout << "5) diff: " << preview::ranges::advance(vi, 4, v.end())
               << ", vi == v.end(): " << (vi == v.end()) << '\n';
+    
+    auto v1 = {3, 1, 4};
+    {
+        auto n = preview::ranges::next(v1.begin());
+        assert(*n == 1);
+    }
+    {
+        auto n = preview::ranges::next(v1.begin(), 2);
+        assert(*n == 4);
+    }
+    {
+        auto n = preview::ranges::next(v1.begin(), v1.end());
+        assert(n == v1.end());
+    }
+    {
+        auto n = preview::ranges::next(v1.begin(), 42, v1.end());
+        assert(n == v1.end());
+    }
 }
