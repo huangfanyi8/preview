@@ -211,7 +211,7 @@ namespace preview
 ///swappable_with
 namespace preview
 {
-  namespace ranges::Cpo
+    namespace ranges::Cpo
   {
     using std::swap;
     
@@ -257,47 +257,47 @@ namespace preview
         (*this)(a[i], b[i]);
     }
   };
-} // namespace Swap
+} // namespace Cpo
 
-  namespace ranges
+    namespace ranges
   {
       inline constexpr auto swap=ranges::Cpo::_swap{};
   }
 
-  namespace _details
-  {
+    namespace _details
+    {
     template<class,class=void>
     struct _swappable
-      :std::false_type
+        :std::false_type
     {};
     
     template<class T>
     struct _swappable<T,std::void_t<decltype(ranges::swap(std::declval<T&>(),std::declval<T&>()))>>
-      :std::true_type
+        :std::true_type
     {};
     
     template<class T,class U,class=void>
     struct _swappable_with
-      :std::false_type
+        :std::false_type
     {};
     
     template<class T,class U>
     struct _swappable_with<T,U,std::void_t<decltype(
-      ranges::swap(std::declval<T>(), std::declval<T>()),
-      ranges::swap(std::declval<U>(), std::declval<U>()),
-      ranges::swap(std::declval<T>(), std::declval<U>()),
-      ranges::swap(std::declval<U>(), std::declval<T>())
-    )>>
-      :std::true_type
+        ranges::swap(std::declval<T>(), std::declval<T>()),
+        ranges::swap(std::declval<U>(), std::declval<U>()),
+        ranges::swap(std::declval<T>(), std::declval<U>()),
+        ranges::swap(std::declval<U>(), std::declval<T>())
+        )>>
+        :std::true_type
     {};
     
-  }
+    }
 
-  template<class T>
-  CXX17_CONCEPT swappable=_details::_swappable<T>::value;
-  
-  template< class T, class U >
-  CXX17_CONCEPT swappable_with = common_reference_with<T, U>&&_details::_swappable_with<T,U>::value;
+    template<class T>
+    CXX17_CONCEPT swappable=_details::_swappable<T>::value;
+    
+    template< class T, class U >
+    CXX17_CONCEPT swappable_with = common_reference_with<T, U>&&_details::_swappable_with<T,U>::value;
 }
 ///boolean_testable
 namespace preview
@@ -306,12 +306,12 @@ namespace preview
   {
     template<class T, class = void >
     struct _boolean_testable_helper
-      :std::false_type
+        :std::false_type
     {};
     
     template<class T>
     struct _boolean_testable_helper<T,std::enable_if_t<preview::convertible_to<decltype(!std::declval<T&&>()), bool>>>
-      :std::true_type
+        :std::true_type
     {};
   }
   
@@ -430,20 +430,33 @@ namespace preview
   template<class T>
   CXX17_CONCEPT regular = semiregular<T> && equality_comparable<T>;
   
-  template<typename Fn, typename... Args>
-  CXX17_CONCEPT invocable = std::is_invocable_v<Fn, Args...>;
+    template<class Fn, class... Args>
+    CXX17_CONCEPT invocable = std::is_invocable_v<Fn, Args...>;
+    
+    template<class Fn, class... Args>
+    CXX17_CONCEPT regular_invocable = invocable<Fn, Args...>;
+    
+    namespace _details
+    {
+        template<class Void,class Fn, class... Args>
+        struct _predicate
+            :std::false_type
+        {};
+        
+        template<class Fn, class... Args>
+        struct _predicate<std::void_t<std::invoke_result_t<Fn, Args...>,
+            std::enable_if_t<regular_invocable<Fn, Args...>&&
+            boolean_testable<std::invoke_result_t<Fn, Args...>>>>,Fn,Args...>
+            :std::true_type
+        {};
+    }
+    
+    template<class Fn, class... Args>
+    CXX17_CONCEPT predicate = _details::_predicate<Fn,Args...>::value;
   
-  template<typename Fn, typename... Args>
-  CXX17_CONCEPT regular_invocable = invocable<Fn, Args...>;
-  
-  template<typename Fn, typename... Args>
-  CXX17_CONCEPT predicate = regular_invocable<Fn, Args...>
-                            && boolean_testable<std::invoke_result_t<Fn, Args...>>;
-  
-  template<typename Rel, typename T, typename U>
-  CXX17_CONCEPT relation
-    = predicate<Rel,T,T> && predicate<Rel, U, U>
-      && predicate<Rel,T,U> && predicate<Rel, U, T>;
+    template<typename Rel, typename T, typename U>
+    CXX17_CONCEPT relation
+        = predicate<Rel,T,T> && predicate<Rel, U, U>&& predicate<Rel,T,U> && predicate<Rel, U, T>;
   
   template<typename Rel, typename T, typename U>
   CXX17_CONCEPT equivalence_relation = relation<Rel, T, U>;
