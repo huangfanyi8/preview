@@ -452,7 +452,7 @@ namespace preview
     }
     
     template<class Fn, class... Args>
-    CXX17_CONCEPT predicate = _details::_predicate<Fn,Args...>::value;
+    CXX17_CONCEPT predicate = _details::_predicate<void,Fn,Args...>::value;
   
     template<typename Rel, typename T, typename U>
     CXX17_CONCEPT relation
