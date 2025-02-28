@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 file(GLOB_RECURSE _test_files ${CMAKE_CURRENT_LIST_DIR}/*.cpp)
 
+message( "test folder is ${CMAKE_CURRENT_LIST_DIR}")
 foreach(test_file  ${_test_files})
     GET_FILENAME_COMPONENT(file_name ${test_file} NAME_WE)
     add_executable(${file_name} ${test_file})

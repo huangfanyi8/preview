@@ -1,4 +1,4 @@
-#include "../../concepts/single/concepts.hpp"
+#include "../../concepts/concepts.hpp"
 
 class A {};
 

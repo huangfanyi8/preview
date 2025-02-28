@@ -1,8 +1,9 @@
-#include "../../iterator/single/iterator_concepts.hpp"
+#include "../../iterator/iterator_concepts.hpp"
 #include <algorithm>
 #include <cassert>
 #include <functional>
 #include <iterator>
+#include "../../ranges/count.hpp"
 
 template<class T>
 struct Holder
@@ -22,5 +23,5 @@ int main()
 {
     P a[10] = {}; // ten null pointers
     assert(std::count(a, a + 10, nullptr) == 10); // OK
-    assert(std::ranges::count(a, a + 10, nullptr) == 10); // Error before C++26
+    assert(preview::ranges::count(a, a + 10, nullptr) == 10); // Error before C++26
 }

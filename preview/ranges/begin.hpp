@@ -56,7 +56,7 @@ namespace preview::ranges::Cpo
     
     public:
         template<class T,
-            class = std::enable_if_t<std::is_lvalue_reference_v<T>||ranges::enable_borrowed_range<T>>,
+            class = std::enable_if_t<std::is_lvalue_reference_v<T>||ranges::enable_borrowed_range<meta::remove_cvref_t<T>>>,
             class= meta::_require_or_t<
             meta::_cxx17_requires<_adl_begin,T>,
             std::is_array_v<std::remove_reference_t<T>>,
